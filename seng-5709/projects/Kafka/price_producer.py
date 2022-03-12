@@ -80,8 +80,11 @@ def write_rates(kafka: KafkaProducer, series: List[Dict[str, Any]]):
 def main():
     """Write BTC prices to Kafka topic"""
     args = get_args()
+
+    start = datetime.utcnow().replace(second=0, microsecond=0)
     print("Sleeping 10 seconds", flush=True)
     sleep(10)
+
     kafka = None
     if args.kafka:
         kafka = KafkaProducer(
@@ -90,13 +93,12 @@ def main():
             client_id="ref-rates-producer",
         )
 
-    start = datetime.utcnow().replace(second=0, microsecond=0)
-
     while True:
         end = start + timedelta(minutes=1)
-        sleeptime = end - datetime.utcnow()
-        print(f"sleeping {sleeptime.total_seconds()} seconds", flush=True)
-        sleep(sleeptime.total_seconds())
+        sleeptime = (end - datetime.utcnow()).total_seconds()
+        if sleeptime > 0:
+            print(f"Sleeping {sleeptime:.3f} seconds", flush=True)
+            sleep(sleeptime)
         series = get_ref_rates(args.crypto, start, end)
         write_rates(kafka, series)
         start = end
