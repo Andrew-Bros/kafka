@@ -32,7 +32,16 @@ services:
     image: kafka-project
     networks:
       - app-tier
+    depends_on:
+      - kafka
     command: python price_producer.py
+  consumer:
+    image: kafka-project
+    networks:
+      - app-tier
+    depends_on:
+      - kafka
+    command: python price_consumer.py
 
 volumes:
   zookeeper_data:

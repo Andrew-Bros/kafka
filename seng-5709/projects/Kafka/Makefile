@@ -1,4 +1,4 @@
-.PHONY: check tidy
+.PHONY: check tidy image demo stop
 
 all:	check tidy
 
@@ -10,3 +10,9 @@ tidy:
 
 image:
 	docker build --tag kafka-project .
+
+demo:	image
+	docker compose up -d
+
+stop:
+	docker compose down
