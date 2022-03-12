@@ -8,10 +8,11 @@ Use Coin Metrics community API to get 1s reference rates for a cryptocurrency.
 """
 
 import argparse
+import json
 import sys
 from datetime import datetime, timedelta
 from time import sleep
-from typing import List, Tuple
+from typing import Any, Dict, List
 
 import requests
 from kafka import KafkaProducer
@@ -36,7 +37,7 @@ def get_args():
         help="Kafka bootstrap server",
         metavar="str",
         type=str,
-        default="localhost:9092",
+        default="kafka:9092",
     )
     args = parser.parse_args()
     if args.kafka.upper() == "NONE":
@@ -44,10 +45,8 @@ def get_args():
     return args
 
 
-def get_ref_rates(
-    coin: str, start: datetime, end: datetime
-) -> List[Tuple[str, str, float]]:
-    """Get timeseries of reference rates as (asset, time, price) tuples"""
+def get_ref_rates(coin: str, start: datetime, end: datetime) -> List[Dict[str, Any]]:
+    """Get timeseries of reference rates"""
     endpoint = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?"
     args = [
         f"assets={coin}",
@@ -57,7 +56,6 @@ def get_ref_rates(
         f"start_time={start.strftime('%Y-%m-%dT%H:%M:%S')}",
         f"end_time={end.strftime('%Y-%m-%dT%H:%M:%S')}",
     ]
-    print(f"start={args[4]} end={args[5]}")
     response = requests.get(endpoint + "&".join(args))
     if not response.ok:
         print(f"API failure: {response.status_code} {response.reason}")
@@ -65,17 +63,18 @@ def get_ref_rates(
     data = response.json().get("data")
     rates = []
     for rate in data:
-        rates.append((rate["asset"], rate["time"], rate["ReferenceRateUSD"]))
+        rate["price"] = float(rate["ReferenceRateUSD"])
+        rate.pop("ReferenceRateUSD")
+        rates.append(rate)
     return rates
 
 
-def write_rates(kafka: KafkaProducer, series: List[Tuple[str, float]]):
+def write_rates(kafka: KafkaProducer, series: List[Dict[str, Any]]):
     """Write rates to Kafka"""
     for rate in series:
-        asset, time, price = rate
-        print(f"{asset}  {time}  {price}")
+        print(f"{rate['asset']}  {rate['time']}  {rate['price']:.6f}")
         if kafka:
-            kafka.send("crypto-ref-rates", key=time, value=price)
+            kafka.send("crypto-ref-rates", value=rate)
 
 
 def main():
@@ -84,8 +83,7 @@ def main():
     kafka = None
     if args.kafka:
         kafka = KafkaProducer(
-            key_serializer=str.encode,
-            value_serializer=str.encode,
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             bootstrap_servers=args.kafka,
             client_id="ref-rates-producer",
         )
@@ -95,7 +93,7 @@ def main():
     while True:
         end = start + timedelta(minutes=1)
         sleeptime = end - datetime.utcnow()
-        print(f"sleeping {sleeptime.total_seconds()}")
+        print(f"sleeping {sleeptime.total_seconds()} seconds")
         sleep(sleeptime.total_seconds())
         series = get_ref_rates(args.crypto, start, end)
         write_rates(kafka, series)

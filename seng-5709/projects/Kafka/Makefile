@@ -7,3 +7,6 @@ check:
 
 tidy:
 	black --diff *.py
+
+image:
+	docker build --tag kafka-project .
