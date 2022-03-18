@@ -38,7 +38,8 @@ The demonstration can be stopped with `gmake stop`.
 
 ## Video
 
-The demonstration video can be found on YouTube. **Add link**
+The demonstration video can be found on YouTube at
+https://youtu.be/Q4ik2W751OY
 
 ## Sources
 
